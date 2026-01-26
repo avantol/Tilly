@@ -41,8 +41,8 @@ namespace WSJTX_Controller
             normalFore = closeButton.ForeColor;
             normalBack = closeButton.BackColor;
             highlightFore = Color.White;
-            highlightBack = Color.Green;
-            highlightBackDisabled = Color.LightGreen;
+            highlightBack = Color.Gray;
+            highlightBackDisabled = Color.LightGray;
 
             disableList = new List<CheckBox>()
             {

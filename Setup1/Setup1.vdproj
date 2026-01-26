@@ -195,11 +195,6 @@
             "AssemblyAsmDisplayName" = "8:System.Net.Http, Version=4.2.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a"
                 "ScatterAssemblies"
                 {
-                    "_249DB9F765875993424B2E9E22ED244F"
-                    {
-                    "Name" = "8:System.Net.Http.dll"
-                    "Attributes" = "3:512"
-                    }
                 }
             "SourcePath" = "8:System.Net.Http.dll"
             "TargetName" = "8:"
@@ -375,15 +370,15 @@
         {
         "Name" = "8:Microsoft Visual Studio"
         "ProductName" = "8:Tilly"
-        "ProductCode" = "8:{45497364-CA9E-4249-910B-A64CFE4C4420}"
-        "PackageCode" = "8:{46B89085-DA58-477B-B05A-AC50A60CEAB4}"
+        "ProductCode" = "8:{358FA1F3-DDEB-4720-A0B6-3DFBD3E44C98}"
+        "PackageCode" = "8:{9E014647-E12B-40CC-B47E-4681E9981399}"
         "UpgradeCode" = "8:{D5415907-DD93-4188-85A8-F15A73F949C2}"
         "AspNetVersion" = "8:2.0.50727.0"
         "RestartWWWService" = "11:FALSE"
         "RemovePreviousVersions" = "11:TRUE"
         "DetectNewerInstalledVersion" = "11:TRUE"
         "InstallAllUsers" = "11:FALSE"
-        "ProductVersion" = "8:1.29"
+        "ProductVersion" = "8:1.30"
         "Manufacturer" = "8:WM8Q"
         "ARPHELPTELEPHONE" = "8:"
         "ARPHELPLINK" = "8:"

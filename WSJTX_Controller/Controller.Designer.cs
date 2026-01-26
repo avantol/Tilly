@@ -1292,6 +1292,7 @@
             this.periodComboBox.Name = "periodComboBox";
             this.periodComboBox.Size = new System.Drawing.Size(52, 21);
             this.periodComboBox.TabIndex = 99;
+            this.periodComboBox.TabStop = false;
             this.periodComboBox.Visible = false;
             this.periodComboBox.SelectedIndexChanged += new System.EventHandler(this.periodComboBox_SelectedIndexChanged);
             // 

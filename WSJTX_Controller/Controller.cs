@@ -26,7 +26,6 @@ namespace WSJTX_Controller
         public Guide guide;
         public bool alwaysOnTop = false;
         public bool skipLevelPrompt = false;
-        public bool offsetTune = false;
 
         private bool formLoaded = false;
         private SetupDlg setupDlg = null;
@@ -286,7 +285,6 @@ namespace WSJTX_Controller
                 }
 
                 //read-only
-                offsetTune = iniFile.Read("offsetTune") == "True";
                 showOptions = iniFile.Read("showOptions") == "True";
             }
 
@@ -524,6 +522,26 @@ namespace WSJTX_Controller
             if (keyData == (Keys.Alt | Keys.X))
             {
                 return wsjtxClient.ToggleHoldCheckBox();
+            }
+
+            if (keyData == (Keys.Alt | Keys.Q))
+            {
+                return wsjtxClient.ReportPowerSwr();
+            }
+
+            if (keyData == (Keys.Alt | Keys.T))
+            {
+                return wsjtxClient.ToggleTuningProcess();
+            }
+
+            if (keyData == Keys.F12)
+            {
+                return wsjtxClient.AudioLevel(true);
+            }
+
+            if (keyData == Keys.F11)
+            {
+                return wsjtxClient.AudioLevel(false);
             }
 
             return base.ProcessCmdKey(ref msg, keyData); // Let other keys be processed normally
@@ -806,6 +824,7 @@ namespace WSJTX_Controller
 
         public void guideLabel_Click(object sender, EventArgs e)
         {
+            if (formLoaded && wsjtxClient.ConnectedToWsjtx()) wsjtxClient.HaltTuning();
             initialConnFaultTimer.Stop();
 
             if (guide != null)
@@ -927,6 +946,7 @@ namespace WSJTX_Controller
 
         private void modeHelpLabel_Click(object sender, EventArgs e)
         {
+            if (formLoaded && wsjtxClient.ConnectedToWsjtx()) wsjtxClient.HaltTuning();
             //marker1
             ShowHelp(
                 $"{friendlyName} processes 'QSO's by selecting one of two modes:" +
@@ -934,25 +954,30 @@ namespace WSJTX_Controller
                 $"{nl}Stations you haven't worked yet are added to the 'Calls waiting reply' list." +
                 $"{nl}Stations calling you directly have priority on this list, and are moved to the top." +
                 $"{nl}{nl}You can leave this window open, for reference, as you run {friendlyName}." +
-                $"{nl}Important: Use WSJT-X only to tune your antenna, if required. After that, minimize WSJT-X and stay on the {friendlyName} window full-time!" +
+                $"{nl}Important: Minimize WSJT-X and stay on the {friendlyName} window full-time!" +
                 $"{nl}{nl}Command keys:" +
                 $"{nl}Alt, O: Review or set options for processing 'QSO's." +
                 $"{nl}Alt, C: Select 'Call CQ' mode." +
                 $"{nl}Alt, L: Select 'Listen for calls' mode." +
                 $"{nl}Alt, E: Enable transmit, or re-enable timed out 'QSO'." +
                 $"{nl}Alt, H: Halt transmit immediately." +
-                $"{nl}Escape key: Halt transmit, cancel current QSO." +
                 $"{nl}Alt, N: Skip to the next call waiting reply, very useful!" +
+                $"{nl}{nl}Radio configuration keys:" +
+                $"{nl}Alt, T: Toggle Tune mode, to determine correct audio output level to radio (F 12 and F 11 keys to adjust, Alt P for fast or complete updates)." +
+                $"{nl}F 12 key: Increase audio output level to radio (during tune or transmit)." +
+                $"{nl}F 11 key: Decrease audio output level to radio (during tune or transmit)." +
+                $"{nl}Alt, Q: Quick output power and SWR check (during transmit)." +
+                $"{nl}Alt, B: Select next higher band." +
+                $"{nl}Alt, W: Select next lower band." +
                 $"{nl}{nl}Optional command keys:" +
                 $"{nl}Alt, D: Delete all 'Calls waiting reply'." +
                 $"{nl}Delete key: Delete selected call in 'Calls waiting reply'." +
-                $"{nl}Alt, B: Select next higher band." +
-                $"{nl}Alt, W: Select next lower band." +
                 $"{nl}Alt, F: Toggle transmit period." +
                 $"{nl}Alt, X: Toggle extended timeout." +
-                $"{nl}Alt, U: Upload to Logbook of the World (LOTW)." +
-                $"{nl}Alt, K: Read the list of shortcut keys." +
+                $"{nl}Alt, U: Upload to Logbook of the World." +
                 $"{nl}Alt, P: Toggle command prompts in {friendlyName} status." +
+                $"{nl}Escape key: Halt transmit, cancel current 'QSO'." +
+                $"{nl}Alt, K: Read the list of shortcut keys." +
                 $"{nl}{nl}Main navigation keys:" +
                 $"{nl}Ctrl, S: Read QSO and radio status (Note that Ctrl, S is the 'home' location!)." +
                 $"{nl}Ctrl, W: Read and select from 'Calls waiting reply' list." +
@@ -1133,6 +1158,8 @@ namespace WSJTX_Controller
             }
 
             if (guide != null) guide.UpdateView();
+
+            if (formLoaded) wsjtxClient.WsjtxSettingChanged();
         }
 
         private void directedTextBox_Leave(object sender, EventArgs e)
@@ -1318,6 +1345,7 @@ namespace WSJTX_Controller
         {
             if (e.Control && e.KeyCode == Keys.Y)
             {
+                if (wsjtxClient.ConnectedToWsjtx()) wsjtxClient.HaltTuning();
                 DemoSounds();
             }
 
@@ -1328,6 +1356,7 @@ namespace WSJTX_Controller
 
             if (e.Control && e.Shift && e.KeyCode == Keys.C)
             {
+                if (wsjtxClient.ConnectedToWsjtx()) wsjtxClient.HaltTx();
                 setupButton_Click(null, null);
             }
 
@@ -1345,23 +1374,29 @@ namespace WSJTX_Controller
                 SendKeys.Send("{UP}");
             }
 
+            //past this point all keys cause tuning to halt
+
             if (e.Control && e.KeyCode == Keys.A)
             {
+                if (formLoaded && wsjtxClient.ConnectedToWsjtx()) wsjtxClient.HaltTuning();
                 logListBox.Focus();
             }
 
             if (e.Control && e.KeyCode == Keys.T)
             {
+                if (formLoaded && wsjtxClient.ConnectedToWsjtx()) wsjtxClient.HaltTuning();
                 loggedLabel.Focus();
             }
 
             if (e.Control && e.KeyCode == Keys.W)
             {
+                if (formLoaded && wsjtxClient.ConnectedToWsjtx()) wsjtxClient.HaltTuning();
                 callListBox.Focus();
             }
 
             if (e.Control && e.KeyCode == Keys.P)
             {
+                if (formLoaded && wsjtxClient.ConnectedToWsjtx()) wsjtxClient.HaltTuning();
                 replyListLabel.Focus();
             }
 
@@ -1510,6 +1545,7 @@ namespace WSJTX_Controller
             }
             if (directedTextBox.Text == "") callDirCqCheckBox.Checked = false;
             if (guide != null) guide.UpdateView();
+            if (formLoaded) wsjtxClient.WsjtxSettingChanged();
         }
 
         public void GuideListenMode()

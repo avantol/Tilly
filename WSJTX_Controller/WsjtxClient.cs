@@ -44,8 +44,8 @@ namespace WSJTX_Controller
 
         private string nl = Environment.NewLine;
 
-        private List<string> acceptableWsjtxVersions = new List<string> { "2.7.0/185", "2.7.0/200", "2.7.0/202", "2.7.0/203", "2.7.0/204", "3.0.0-rc1/100", "3.0.0-rc1/101", "3.0.0-rc1/102" };
-        private List<string> bestWsjtxVersions = new List<string> { "2.7.0/204", "3.0.0-rc1/102" };
+        private List<string> acceptableWsjtxVersions = new List<string> { "2.7.0/204", "3.0.0-rc1/102", "3.0.0-rc1/103" };
+        private List<string> bestWsjtxVersions = new List<string> { "2.7.0/204", "3.0.0-rc1/103" };
         private List<string> supportedModes = new List<string>() { "FT8" };
 
         public int maxPrevTo = 2;
@@ -58,6 +58,7 @@ namespace WSJTX_Controller
         public string myCall = null, myGrid = null, myContinent = null;
         public int rankMethodIdx = 0;
         public bool cmdPrompts = true;
+        public bool tuning = false;
 
         private StreamWriter logSw = null;
         private StreamWriter potaSw = null;
@@ -210,6 +211,7 @@ namespace WSJTX_Controller
         bool newTxFirst = false;
         bool newBand = false;
         private string uploadResult = null;
+        private string tuneResult = null;
         private string lastStatusTxMsg = null;
         private string timedOutCall = null;
         private string curTxMsg = null;
@@ -219,12 +221,13 @@ namespace WSJTX_Controller
         private int lastWsjtxResultCode = 0;
         private int decodeCount = 0;
         private int consecNoDecodes = 0;
-        private int maxNoDecodes = 2;
+        private int maxNoDecodes = 3;
         private List<double> timeOffsets = new List<double>();
         private double timeOffset = 0;
         private double maxTimeOffset = 1.20;
         private bool txEnableChanged = false;
         private bool promptsChanged = false;
+        private string toCallStatus = null;
 
         public static bool IsWsjtx270Rc()
         {
@@ -310,6 +313,15 @@ namespace WSJTX_Controller
         {
             ANY,
             CURRENT
+        }
+
+        public enum WsjtxResultCodes
+        {
+            NONE,
+            LOTW_UPL,
+            PWR_SWR_RPT,
+            PWR_SWR_END,
+            PWR_SWR_SINGLE_RPT
         }
 
         public WsjtxClient(Controller c, IPAddress reqIpAddress, int reqPort, bool reqMulticast, bool reqOverrideUdpDetect, bool reqDebug, bool reqLog, WsjtxClient.TxModes mode)
@@ -420,7 +432,8 @@ namespace WSJTX_Controller
 
         public bool EnableMode()              //cq mode selected
         {
-            if (txMode == TxModes.CALL_CQ && cqPaused)
+            HaltTuning();
+            if (txMode == TxModes.CALL_CQ && !txEnabled)
             {
                 DisableAutoFreqPause();
 
@@ -435,6 +448,7 @@ namespace WSJTX_Controller
                 else
                 {
                     ctrl.holdCheckBox.Checked = false;
+                    newDirCq = true;
                     SetupCq(true);
                 }
 
@@ -671,6 +685,7 @@ namespace WSJTX_Controller
 
         public bool ClearCallQueue()
         {
+            HaltTuning();
             if (callQueue.Count == 0) return false;
 
             callQueue.Clear();
@@ -744,6 +759,7 @@ namespace WSJTX_Controller
 
         public bool ToggleHoldCheckBox()
         {
+            HaltTuning();
             if (callInProg == null) return false;
 
             ctrl.holdCheckBox.Checked = !ctrl.holdCheckBox.Checked;
@@ -793,6 +809,7 @@ namespace WSJTX_Controller
 
         public void TxModeChanged(TxModes newMode)          //tx mode selected
         {
+            HaltTuning();
             TxModes prevTxMode = txMode;
             txMode = newMode;
             DebugOutput($"{nl}{Time()} TxModeChanged, txMode:{txMode} cqPaused:{cqPaused} txEnabled:{txEnabled}");
@@ -884,7 +901,7 @@ namespace WSJTX_Controller
 
         public void Pause(bool haltTx, bool showStatus)         //go to pause mode, optionally halt Tx
         {
-            if (haltTx) HaltTx();
+            if (haltTx || tuning) HaltTx();
 
             StopDecodeTimers();
             DisableAutoFreqPause();
@@ -1297,7 +1314,7 @@ namespace WSJTX_Controller
                             curTxMsg = txMsg;       //tx interrupted with a different call
                             curTxPayload = null;
                             DebugOutput($"{nl}{Time()} WSJT-X event, txMsg changed, curTxMsg:{curTxMsg} curTxPayload:'{curTxPayload}'");
-                            ShowStatus();
+                            if (!tuning) ShowStatus();
                         }
                         lastStatusTxMsg = txMsg;
                     }
@@ -1657,11 +1674,39 @@ namespace WSJTX_Controller
                     //**********************************
                     if (wsjtxResultCode != lastWsjtxResultCode)
                     {
-                        if (wsjtxResultCode != 0)
+                        if (wsjtxResultCode == (int)WsjtxResultCodes.LOTW_UPL)
                         {
                             DebugOutput($"{nl}{Time()} WSJT-X event, upload to LOTW, wsjtxResultCode:{wsjtxResultCode} statusDetail:'{statusDetail}' isNull:{statusDetail == null}");
                             uploadResult = (statusDetail != null && statusDetail != "" ) ? statusDetail : "QSO upload status unknown";
-                            StartStatusTimer();
+                            ShowStatus();
+                        }
+
+                        if (wsjtxResultCode == (int)WsjtxResultCodes.PWR_SWR_SINGLE_RPT)        //no reason to lose decode syncing 
+                        {
+                            DisableAutoFreqPause();
+                            DebugOutput($"{nl}{Time()} WSJT-X event, power/swr single result, wsjtxResultCode:{wsjtxResultCode} statusDetail:'{statusDetail}' isNull:{statusDetail == null}");
+                            tuneResult = (statusDetail != null && statusDetail != "") ? statusDetail : "Power/SWR unknown";
+                            ShowStatus();
+                        }
+
+                        if (wsjtxResultCode == (int)WsjtxResultCodes.PWR_SWR_RPT)
+                        {
+                            consecNoDecodes = 0;
+                            StopDecodeTimers();
+                            DisableAutoFreqPause();
+                            DebugOutput($"{nl}{Time()} WSJT-X event, power/swr result, wsjtxResultCode:{wsjtxResultCode} statusDetail:'{statusDetail}' isNull:{statusDetail == null}");
+                            tuneResult = (statusDetail != null && statusDetail != "") ? statusDetail : "Power/SWR unknown";
+                            ShowStatus();
+                        }
+
+                        if (wsjtxResultCode == (int)WsjtxResultCodes.PWR_SWR_END)
+                        {
+                            decodeCycle = 0;        //restart decode syncing
+                            DebugOutput($"{nl}{Time()} WSJT-X event, power/swr result, wsjtxResultCode:{wsjtxResultCode}");
+                            tuneResult = "Tune stopped";
+                            tuning = false;             //normal status msgs
+                            statusTimer.Interval = 750;     //will be receiving mode soon
+                            statusTimer.Start();
                         }
                         lastWsjtxResultCode = wsjtxResultCode;
                     }
@@ -2226,9 +2271,10 @@ namespace WSJTX_Controller
         {
             string toCall = WsjtxMessage.ToCall(txMsg);
             curTxMsg = txMsg;       //the message displayed
+            if (txMsg == "TUNE") tuning = true;
             lastStatusTxMsg = txMsg;     //status update for interrupted Tx not required
             string lastToCall = WsjtxMessage.ToCall(lastTxMsg);
-            DebugOutput($"{nl}{Time()} WSJT-X event, Tx start: toCall:'{toCall}' lastToCall:'{lastToCall}' decodesProcessed:{decodesProcessed} processDecodeTimer interval:{processDecodeTimer.Interval} msec");
+            DebugOutput($"{nl}{Time()} WSJT-X event, Tx start: toCall:'{toCall}' lastToCall:'{lastToCall}' decodesProcessed:{decodesProcessed} processDecodeTimer interval:{processDecodeTimer.Interval} msec tuning:{tuning}");
             var dtNow = DateTime.UtcNow;
             SetTxStartInfo(dtNow, toCall);
 
@@ -2236,27 +2282,6 @@ namespace WSJTX_Controller
 
             if (toCall == null)
             {
-                if (txMsg == "TUNE" && ctrl.offsetTune)
-                {
-                    prevOffset = txOffset;
-                    DebugOutput($"{spacer}tuning start");
-                    emsg.NewTxMsgIdx = 10;
-                    emsg.GenMsg = $"";          //no effect
-                    emsg.SkipGrid = ctrl.skipGridCheckBox.Checked;
-                    emsg.UseRR73 = ctrl.useRR73CheckBox.Checked;
-                    emsg.CmdCheck = "";         //ignored
-                    emsg.Offset = tuningAudioOffset;
-                    ba = emsg.GetBytes();
-                    udpClient2.Send(ba, ba.Length);
-                    DebugOutput($"{Time()} >>>>>Sent 'Opt Req' cmd:10{nl}{emsg}");
-                    if (settingChanged)
-                    {
-                        ctrl.WsjtxSettingConfirmed();
-                        settingChanged = false;
-                    }
-                    return;
-                }
-
                 //WSJT-X replied to invalid message, process next msg
                 txTimeout = true;
                 return;
@@ -2280,31 +2305,14 @@ namespace WSJTX_Controller
             shortTx = false;
             double? txTime = null;
 
-            DebugOutput($"{nl}{Time()} WSJT-X event, Tx end: toCall:'{toCall}' lastToCall:'{lastToCall}' deCall:'{deCall}' cmdToCall:'{cmdToCall}'");
+            if (txMsg == "TUNE") tuning = false;
+            DebugOutput($"{nl}{Time()} WSJT-X event, Tx end: toCall:'{toCall}' lastToCall:'{lastToCall}' deCall:'{deCall}' cmdToCall:'{cmdToCall}' tuning:{tuning}");
             DebugOutput($"{spacer}toCallTxStart:{toCallTxStart} decodesProcessed:{decodesProcessed} txEndTime:{txEndTime.ToString("HHmmss.fff")} maxTxRepeat:{maxTxRepeat}");
 
             if (toCall == null)
             {
                 if (txMsg == "TUNE")
                 {
-                    if (ctrl.offsetTune)
-                    {
-                        DebugOutput($"{spacer}tuning end");
-                        emsg.NewTxMsgIdx = 10;
-                        emsg.GenMsg = $"";          //no effect
-                        emsg.SkipGrid = ctrl.skipGridCheckBox.Checked;
-                        emsg.UseRR73 = ctrl.useRR73CheckBox.Checked;
-                        emsg.CmdCheck = "";         //ignored
-                        emsg.Offset = CurAudioOffset();
-                        ba = emsg.GetBytes();
-                        udpClient2.Send(ba, ba.Length);
-                        DebugOutput($"{Time()} >>>>>Sent 'Opt Req' cmd:10{nl}{emsg}");
-                        if (settingChanged)
-                        {
-                            ctrl.WsjtxSettingConfirmed();
-                            settingChanged = false;
-                        }
-                    }
                     DisableTx(false);
                     HaltTx();          //****this syncs txEnable state with WSJT-X****
                     return;
@@ -3273,7 +3281,7 @@ namespace WSJTX_Controller
             {
                 if (WsjtxMessage.NegoState == WsjtxMessage.NegoStates.WAIT)
                 {
-                    status = $"Waiting for WSJT-X{k}.";
+                    status = $"{pgmName} {pgmVer}. Waiting for WSJT-X{k}.";
                     foreColor = Color.Black;
                     backColor = Color.Orange;
                     return;
@@ -3288,7 +3296,7 @@ namespace WSJTX_Controller
 
                 if (WsjtxMessage.NegoState == WsjtxMessage.NegoStates.INITIAL)
                 {
-                    status = $"Waiting for WSJT-X to reply{k}.";
+                    status = $"{pgmName} {pgmVer}. Waiting for WSJT-X to reply{k}.";
                     foreColor = Color.Black;
                     backColor = Color.Orange;
                 }
@@ -3329,7 +3337,7 @@ namespace WSJTX_Controller
                             DebugOutput($"{spacer}callInProg:'{callInProg}' txMode:{txMode} callQueue.Count:{callQueue.Count} transmitting:{transmitting} qsoState:{qsoState}");
                             DebugOutput($"{spacer}curTxMsg:{curTxMsg} curTxPayload:'{curTxPayload}' autoFreqPauseMode:{autoFreqPauseMode}");
                             DebugOutput($"{spacer}newSelection:{newSelection} uploadResult:'{uploadResult}' newBand:{newBand} newTxFirst:{newTxFirst} holdCheckBox:{ctrl.holdCheckBox.Checked}");
-                            DebugOutput($"{spacer}modePrompt:{modePrompt} txEnableChanged:{txEnableChanged}");
+                            DebugOutput($"{spacer}modePrompt:{modePrompt} txEnableChanged:{txEnableChanged} tuneResult:{tuneResult} toCallStatus:'{toCallStatus}'");
 
                             string prevRxStr = "";
                             string curRxStr = "";
@@ -3403,12 +3411,24 @@ namespace WSJTX_Controller
                                 if (!cmdPrompts) prompt = "";
                             }
 
+                            if (tuneResult != null)     //for 'tune stopped'
+                            {
+                                curTxMode = $"{tuneResult}, " + curTxMode;
+                            }
+
                             //marker1
                             if (cqPaused)
                             {
-                                status = $"{curTxMode}{cond}{inProg}{callsWaiting}{desc}{hold}{prompt}.";
-                                foreColor = Color.White;
-                                backColor = Color.Green;
+                                if (tuning)
+                                {
+                                    status = tuneResult;
+                                }
+                                else
+                                {
+                                    status = $"{curTxMode}{cond}{inProg}{callsWaiting}{desc}{hold}{prompt}.";
+                                    foreColor = Color.White;
+                                    backColor = Color.Green;
+                                }
                             }
                             else    //not paused
                             {
@@ -3462,7 +3482,7 @@ namespace WSJTX_Controller
                                         }
                                     }
 
-                                    curRxStr = (curRxPayload == null && callInProg != null && curCall == callInProg && sentCallList.Contains(curCall)) ? ", no response" : "";
+                                    curRxStr = (curRxPayload == null && callInProg != null && curCall == callInProg && sentCallList.Contains(curCall)) ? (toCallStatus != null ? $" {toCallStatus}" : " no response") : "";
                                     if (curRxPayload != null) curRxStr = $", received {curRxPayload}";     //otherwise, no response
                                     prevRxStr = prevRxPayload != null ? $", previous {prevRxPayload}" : "";
                                     if (transmitting && (curTxPayload == "73" || curTxPayload == "RR73")) prevRxStr = "";    //don't neeed that detail any more
@@ -3473,7 +3493,7 @@ namespace WSJTX_Controller
                                     inProg = $", {Spacify(timedOutCall)}";
                                     cond = " timed out";
                                     timedOutCall = null;
-                                    if (cmdPrompts) prompt = $", use Alt E to resume QSO";
+                                    if (cmdPrompts && txMode == TxModes.LISTEN) prompt = $", use Alt E to resume QSO";
                                 }
                                 else if (modePrompt && callInProg != null && txMode == TxModes.LISTEN && !txEnabled)
                                 {
@@ -3491,7 +3511,13 @@ namespace WSJTX_Controller
 
                                 if (transmitting || (curRxPayload != null && curRxPayload != "")) desc = "";
 
-                                if (autoFreqPauseMode > autoFreqPauseModes.DISABLED)
+                                if (tuning)
+                                {
+                                    status = tuneResult;
+                                    foreColor = Color.Black;
+                                    backColor = Color.Yellow;     //caution
+                                }
+                                else if (autoFreqPauseMode > autoFreqPauseModes.DISABLED)
                                 {
                                     status = "Updating best transmit frequency.";
                                 }
@@ -3520,6 +3546,9 @@ namespace WSJTX_Controller
                             deletedAllCalls = false;
                             txEnableChanged = false;
                             promptsChanged = false;
+                            tuneResult = null;
+                            toCallStatus = null;
+
                             break;
                     }
                 }
@@ -3618,9 +3647,24 @@ namespace WSJTX_Controller
                     return;
                 }
 
-                if (deCall == null || deCall == callInProg)
+                if (deCall == null)
                 {
-                    if (debugDetail) DebugOutput($"{spacer}AddSelectedCall rejected, deCall null or callInProg");
+                    if (debugDetail) DebugOutput($"{spacer}AddSelectedCall rejected, deCall null");
+                    return;
+                }
+
+                if (deCall == callInProg)
+                {
+                    if (isCq || emsg.Is73orRR73() || emsg.IsRogers())
+                    {
+                        toCallStatus = "ready";
+                    }
+                    else
+                    {
+                        toCallStatus = "busy";
+                    }
+
+                    DebugOutput($"{spacer}AddSelectedCall toCallStatus:{toCallStatus}");
                     return;
                 }
 
@@ -4373,8 +4417,35 @@ namespace WSJTX_Controller
             return true;
         }
 
+        public bool ReportPowerSwr()
+        {
+            if (!bestWsjtxVersions.Contains(curVerBld)) return false;
+
+            GetPowerSwr();
+            return true;
+        }
+
+        public bool ToggleTuningProcess()
+        {
+            if (!bestWsjtxVersions.Contains(curVerBld)) return false;
+
+            ToggleTuning();
+            tuning = !tuning;
+            return true;
+        }
+
+        public bool AudioLevel(bool up)
+        {
+            if (!bestWsjtxVersions.Contains(curVerBld)) return false;
+            if (!transmitting) return false;
+
+            AdjAudioLevel(up);
+            return true;
+        }
+
         public bool ToggleTxFirst()
         {
+            HaltTuning();
             if (!bestWsjtxVersions.Contains(curVerBld)) return false;
             DebugOutput($"{Time()} ToggleTxFirst, newFreq:{0} newTxFirst:{!txFirst}");
             SetBandTxFirst(0, !txFirst);
@@ -4383,6 +4454,7 @@ namespace WSJTX_Controller
 
         public bool UploadLotw()
         {
+            HaltTuning();
             if (!bestWsjtxVersions.Contains(curVerBld)) return false;
 
             StartUploadLotw();
@@ -4391,6 +4463,7 @@ namespace WSJTX_Controller
 
         public void NextCall(bool confirm, int idx)         //no confirm, left-dbl-click on call list, or ctrl/N
         {
+            HaltTuning();
             DebugOutput($"{Time()} NextCall {idx}");
             dialogTimer2.Tag = $"{confirm} {idx}";
             dialogTimer2.Start();
@@ -4783,6 +4856,62 @@ namespace WSJTX_Controller
             DebugOutput($"{Time()} >>>>>Sent 'Set band / Tx first' cmd:14{nl}{emsg}");
         }
 
+        private void GetPowerSwr()       //requires bestWsjtxVersions
+        {
+            if (udpClient2 == null)
+            {
+                DebugOutput($"{Time()} GetPowerSwr skipped, udpClient2:{udpClient2}");
+                return;
+            }
+
+            emsg.NewTxMsgIdx = 18;
+            emsg.Param0 = false;        //ignored
+            emsg.Offset = 0;            //ignored
+            emsg.GenMsg = $"";          //ignored
+            emsg.CmdCheck = "";         //ignored
+            ba = emsg.GetBytes();
+            udpClient2.Send(ba, ba.Length);
+            DebugOutput($"{Time()} >>>>>Sent 'Get Power/SWR' cmd:14{nl}{emsg}");
+        }
+
+        private void AdjAudioLevel(bool up)       //requires bestWsjtxVersions
+        {
+            if (udpClient2 == null)
+            {
+                DebugOutput($"{Time()} SetAudioLevel skipped, udpClient2:{udpClient2}");
+                return;
+            }
+
+            emsg.NewTxMsgIdx = 20;
+            emsg.Param0 = up;
+            emsg.Offset = 0;            //ignored
+            emsg.GenMsg = $"";          //ignored
+            emsg.CmdCheck = "";         //ignored
+            ba = emsg.GetBytes();
+            udpClient2.Send(ba, ba.Length);
+            DebugOutput($"{Time()} >>>>>Sent 'Set Audio Level' cmd:14{nl}{emsg}");
+        }
+
+        private void ToggleTuning()       //requires bestWsjtxVersions
+        {
+            if (udpClient2 == null)
+            {
+                DebugOutput($"{Time()} ToggleTuning skipped, udpClient2:{udpClient2}");
+                return;
+            }
+
+            if (txEnabled) HaltTx();
+
+            emsg.NewTxMsgIdx = 19;
+            emsg.Param0 = !cmdPrompts;  //detail level
+            emsg.Offset = 0;            //ignored
+            emsg.GenMsg = $"";          //ignored
+            emsg.CmdCheck = "";         //ignored
+            ba = emsg.GetBytes();
+            udpClient2.Send(ba, ba.Length);
+            DebugOutput($"{Time()} >>>>>Sent 'ToggleTuning' cmd:14{nl}{emsg}");
+        }
+
         private void StartUploadLotw()       //requires bestWsjtxVersions
         {
             if (udpClient2 == null)
@@ -4814,9 +4943,15 @@ namespace WSJTX_Controller
             DebugOutput($"{Time()} >>>>>Sent 'Enable Debug' cmd:5{nl}{emsg}");
         }
 
+        public void HaltTuning()
+        {
+            if (tuning) HaltTx();
+        }
+
         public void HaltTx()
         {
             StopDecodeTimers();
+            tuning = false;
             if (udpClient2 != null)
             {
                 emsg.NewTxMsgIdx = 12;
@@ -4888,7 +5023,7 @@ namespace WSJTX_Controller
             processDecodeTimer.Stop();
             DebugOutput($"{nl}{Time()} processDecodeTimer stop");
             statusTimer.Interval = 2000;        //allow enough time so transmit (if needed) has started
-            statusTimer.Start();
+            if (!tuning) statusTimer.Start();
             ProcessDecodes();
         }
         private void ProcessDecodeTimer2Tick(object sender, EventArgs e)
