@@ -1618,32 +1618,29 @@ namespace WSJTX_Controller
                         }
                         else        //new band
                         {
-                            if (opMode > OpModes.IDLE) ClearAudioOffsets();
-
                             DisableAutoFreqPause();
+                            ClearAudioOffsets();
+                            newBand = true;
+                            decodeCount = 0;
+                            consecNoDecodes = 0;
+                            AutoFreqChanged(ctrl.freqCheckBox.Checked, true);
+                            DebugOutput($"{spacer}band changed:'{FreqToBandStr(dialFrequency / 1e6)}' (was:'{FreqToBandStr(lastDialFrequency / 1e6)}')");
 
                             if (opMode == OpModes.ACTIVE)
                             {
-                                ClearAudioOffsets();
-                                AutoFreqChanged(ctrl.freqCheckBox.Checked, true);
-                                ShowStatus();
-
-                                DebugOutput($"{spacer}band changed:'{FreqToBandStr(dialFrequency / 1e6)}' (was:'{FreqToBandStr(lastDialFrequency / 1e6)}')");
                                 ClearCalls(true);
                                 logList.Clear();        //can re-log on new mode/band or in new session
                                 ShowLogged();
-                                newBand = true;
-                                decodeCount = 0;
-                                consecNoDecodes = 0;
 
                                 //won't get notification of Halt and Enable Tx buttons changing
                                 if (txEnabled) Pause(true, false);
-                                //if transmitting, let tx end trigger show status
-                                if (!transmitting) ShowStatus();
-
-                                if (!modeChanged) ctrl.ShowMsg("Band changed", false);
-                                DebugOutput($"{spacer}cleared queued calls:DialFrequency, txTimeout:{txTimeout} callInProg:'{CallPriorityString(callInProg)}'");
                             }
+
+                            //if transmitting, let tx end trigger show status
+                            if (!transmitting) ShowStatus();
+
+                            if (!modeChanged) ctrl.ShowMsg("Band changed", false);
+                            DebugOutput($"{spacer}cleared queued calls:DialFrequency, txTimeout:{txTimeout} callInProg:'{CallPriorityString(callInProg)}'");
                         }
                         lastDialFrequency = smsg.DialFrequency;
                     }
@@ -2253,8 +2250,7 @@ namespace WSJTX_Controller
                 DebugOutput($"{spacer}check auto freq/disable tx");
                 CheckNextXmit();        //can result in tx disabled)
             }
-
-            if (newDirCq)
+            else if (newDirCq)
             {
                 CheckNextXmit();
             }
@@ -3368,7 +3364,7 @@ namespace WSJTX_Controller
                             string sel = newSelection ? " selected" : "";
                             string inProg = curCall != null ? $", {Spacify(curCall)}{sel}" : "";
                             curTxMode = transmitting ? "Transmitting" : "Receiving";
-                            string cond = (txEnableChanged && txMode == TxModes.CALL_CQ) ? (!cqPaused ? ", transmit enabled" : ", transmit disabled") : "";
+                            string cond = ((uploadResult != null || txEnableChanged) && txMode == TxModes.CALL_CQ) ? (!cqPaused ? ", transmit enabled" : ", transmit disabled") : "";
                             if (txEnableChanged && txMode == TxModes.LISTEN && txEnabled) cond = ", transmit enabled";
 
                             if (newTxFirst) curTxMode = (txFirst ? "Tx first selected, " : "Tx second selected, ") + curTxMode;
@@ -4386,7 +4382,6 @@ namespace WSJTX_Controller
             DebugOutput($"{Time()} BandUp, newFreq:{(uint)(bandToFreq(idx) * 1000)} newTxFirst:{txFirst}");
             SetBandTxFirst((uint)(bandToFreq(idx) * 1000), txFirst);
             newBand = true;
-            StartStatusTimer();     //allow time for WSJT-X to respond
 
             ClearCalls(true);
             logList.Clear();        //can re-log on new mode/band or in new session
@@ -4409,7 +4404,6 @@ namespace WSJTX_Controller
             DebugOutput($"{Time()} BandDown, newFreq:{(uint)(bandToFreq(idx) * 1000)} newTxFirst:{txFirst}");
             SetBandTxFirst((uint)(bandToFreq(idx) * 1000), txFirst);
             newBand = true;
-            StartStatusTimer();     //allow time for WSJT-X to respond
 
             ClearCalls(true);
             logList.Clear();        //can re-log on new mode/band or in new session
@@ -4457,6 +4451,7 @@ namespace WSJTX_Controller
             HaltTuning();
             if (!bestWsjtxVersions.Contains(curVerBld)) return false;
 
+            Pause(true, false);
             StartUploadLotw();
             return true;
         }
