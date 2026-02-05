@@ -16,6 +16,7 @@ using System.Media;
 using System.IO;
 using System.Reflection;
 using Microsoft.Win32;
+using System.Text.RegularExpressions;
 
 
 namespace WSJTX_Controller
@@ -57,7 +58,10 @@ namespace WSJTX_Controller
         public System.Windows.Forms.Timer helpTimer;
 
         private string nl = Environment.NewLine;
-        //private string regexAlphanumeric = "[^0-9A-Za-z]";
+        private static string alphanumericOnly = "[^0-9A-Za-z]";  //match if any non-alphanumeric
+        private static string alphaOnly = "[^A-Za-z]";         //match if any numeric
+        private static string numericOnly = "[^0-9]";          //match if any alpha
+
 
         public Controller()
         {
@@ -154,6 +158,7 @@ namespace WSJTX_Controller
             string myContinent = null;
             bool newOnBand = true;
             bool cmdPrompts = true;
+            bool usePskReporter = true;
             friendlyName = pgmName;
 
             //control defaults
@@ -191,6 +196,7 @@ namespace WSJTX_Controller
                 newOnBand = Properties.Settings.Default.newOnBand;
                 cmdPrompts = Properties.Settings.Default.cmdPrompts;
                 bandComboBox.SelectedIndex = newOnBand ? 1 : 0;
+                usePskReporter = Properties.Settings.Default.usePskReporter;
 
             }
             else        //read settings from .ini file (avoid .Net config file mess)
@@ -283,6 +289,7 @@ namespace WSJTX_Controller
                     int.TryParse(iniFile.Read("txPeriodIdx"), out i);
                     periodComboBox.SelectedIndex = i;
                 }
+                usePskReporter = iniFile.Read("usePskReporter") != "False";              //default: true
 
                 //read-only
                 showOptions = iniFile.Read("showOptions") == "True";
@@ -337,6 +344,8 @@ namespace WSJTX_Controller
             rankComboBox.SelectedIndex = rankMethodIdx;
             wsjtxClient.RankMethodIdxChanged(rankMethodIdx);
             wsjtxClient.cmdPrompts = cmdPrompts;
+            wsjtxClient.usePskReporter = usePskReporter;
+
 
             mainLoopTimer.Interval = 10;           //actual is 11-12 msec (due to OS limitations)
             mainLoopTimer.Start();
@@ -352,8 +361,16 @@ namespace WSJTX_Controller
             formLoaded = true;
             updateReplyNewOnlyCheckBoxEnabled();
 
-            statusText_Enter(null, null);
-            statusText.Focus();
+            if (!this.Focused)
+            {
+                this.Focus();
+            }
+
+            if (!statusText.Focused)
+            {
+                statusText.Focus();
+            }
+            SendKeys.Send("{UP}");
         }
 
         private void Controller_FormClosing(object sender, FormClosingEventArgs e)
@@ -408,6 +425,7 @@ namespace WSJTX_Controller
                 iniFile.Write("txPeriodIdx", periodComboBox.SelectedIndex.ToString());
                 iniFile.Write("showOptions", showOptions.ToString());
                 iniFile.Write("cmdPrompts", wsjtxClient.cmdPrompts.ToString());
+                iniFile.Write("usePskReporter", wsjtxClient.usePskReporter.ToString());
             }
 
             CloseComm();
@@ -450,7 +468,20 @@ namespace WSJTX_Controller
                 return true;
             }
 
+            if (keyData == Keys.F4)
+            {
+                verLabel2_Click(null, null);
+                return true;
+            }
+
+
             if (!wsjtxClient.WsjtxConnecting()) return false;
+
+
+            if (keyData == (Keys.Alt | Keys.M))
+            {
+                return wsjtxClient.ToggleOperatingMode();
+            }
 
             if (keyData == (Keys.Alt | Keys.B))
             {
@@ -462,7 +493,14 @@ namespace WSJTX_Controller
                 return wsjtxClient.BandDown();
             }
 
+
             if (!wsjtxClient.ConnectedToWsjtx()) return false;
+
+
+            if (keyData == (Keys.Alt | Keys.R))
+            {
+                return wsjtxClient.TogglePskReporter();
+            }
 
             if (keyData == (Keys.Alt | Keys.P))
             {
@@ -916,7 +954,7 @@ namespace WSJTX_Controller
 
         private void verLabel2_Click(object sender, EventArgs e)
         {
-            string command = "https://github.com/avantol/Tilly/releases";
+            string command = "https://github.com/avantol/Tilly/releases/latest";
             System.Diagnostics.Process.Start(command);
         }
 
@@ -955,6 +993,7 @@ namespace WSJTX_Controller
                 $"{nl}Stations calling you directly have priority on this list, and are moved to the top." +
                 $"{nl}{nl}You can leave this window open, for reference, as you run {friendlyName}." +
                 $"{nl}Important: Minimize WSJT-X and stay on the {friendlyName} window full-time!" +
+
                 $"{nl}{nl}Command keys:" +
                 $"{nl}Alt, O: Review or set options for processing 'QSO's." +
                 $"{nl}Alt, C: Select 'Call CQ' mode." +
@@ -962,25 +1001,32 @@ namespace WSJTX_Controller
                 $"{nl}Alt, E: Enable transmit, or re-enable timed out 'QSO'." +
                 $"{nl}Alt, H: Halt transmit immediately." +
                 $"{nl}Alt, N: Skip to the next call waiting reply, very useful!" +
+
                 $"{nl}{nl}Radio configuration keys:" +
                 $"{nl}Alt, T: Toggle Tune mode, to determine correct audio output level to radio (F 12 and F 11 keys to adjust, Alt P for fast or complete updates)." +
                 $"{nl}F 12 key: Increase audio output level to radio (during tune or transmit)." +
                 $"{nl}F 11 key: Decrease audio output level to radio (during tune or transmit)." +
-                $"{nl}Alt, Q: Quick output power and SWR check (during transmit)." +
+                $"{nl}Alt, Q: Quick check of output power and SWR (during transmit) or audio input (during receive)." +
                 $"{nl}Alt, B: Select next higher band." +
                 $"{nl}Alt, W: Select next lower band." +
+
                 $"{nl}{nl}Optional command keys:" +
                 $"{nl}Alt, D: Delete all 'Calls waiting reply'." +
                 $"{nl}Delete key: Delete selected call in 'Calls waiting reply'." +
                 $"{nl}Alt, F: Toggle transmit period." +
                 $"{nl}Alt, X: Toggle extended timeout." +
                 $"{nl}Alt, U: Upload to Logbook of the World." +
+                $"{nl}Alt, M: Select operating mode (FT8 or FT4)." +
                 $"{nl}Alt, P: Toggle command prompts in {friendlyName} status." +
                 $"{nl}Escape key: Halt transmit, cancel current 'QSO'." +
+                $"{nl}F 4 key: Check for update to {friendlyName}." +
+                $"{nl}Alt, R: Toggle sending spots to PSKReporter (leave 'Enabled' to help other hams)" +
                 $"{nl}Alt, K: Read the list of shortcut keys." +
+
                 $"{nl}{nl}Main navigation keys:" +
                 $"{nl}Ctrl, S: Read QSO and radio status (Note that Ctrl, S is the 'home' location!)." +
                 $"{nl}Ctrl, W: Read and select from 'Calls waiting reply' list." +
+
                 $"{nl}{nl}Optional navigation keys:" +
                 $"{nl}Ctrl, A: Read 'Auto-logged calls' list." +
                 $"{nl}Ctrl, T: Read total number of 'Auto-logged calls'." +
@@ -1050,7 +1096,7 @@ namespace WSJTX_Controller
         {
             e.KeyChar = char.ToUpper(e.KeyChar);
             char c = e.KeyChar;
-            if (c == (char)Keys.Back || c == ' ' || (c >= 'A' && c <= 'Z')) return;
+            if (c == (char)Keys.Back || c == ' ' || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) return;
             Console.Beep();
             e.Handled = true;
         }
@@ -1249,7 +1295,7 @@ namespace WSJTX_Controller
             string delim = "";
             foreach (string dir in dirArray)
             {
-                if (dir.Length >= 2 && dir.Length <= 4) corrText = corrText + delim + dir;
+                if (dir.Length >= 2 && dir.Length <= 4 && (!Regex.IsMatch(dir, alphaOnly) || !Regex.IsMatch(dir, numericOnly))) corrText = corrText + delim + dir;
                 delim = " ";
             }
             alertTextBox.Text = corrText;

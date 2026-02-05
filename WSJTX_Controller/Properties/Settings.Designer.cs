@@ -393,5 +393,17 @@ namespace WSJTX_Controller.Properties {
                 this["cmdPrompts"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool usePskReporter {
+            get {
+                return ((bool)(this["usePskReporter"]));
+            }
+            set {
+                this["usePskReporter"] = value;
+            }
+        }
     }
 }

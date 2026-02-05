@@ -17,3 +17,5 @@ C:\Users\John\source\repos\Tilly\WSJTX_Controller\obj\Debug\Tilly.csproj.CoreCom
 C:\Users\John\source\repos\Tilly\WSJTX_Controller\obj\Debug\Tilly.exe
 C:\Users\John\source\repos\Tilly\WSJTX_Controller\obj\Debug\Tilly.pdb
 C:\Users\John\source\repos\Tilly\WSJTX_Controller\obj\Debug\Tilly.csprojAssemblyReference.cache
+C:\Users\John\source\repos\Tilly\WSJTX_Controller\bin\Debug\Resources\Chime.wav
+C:\Users\John\source\repos\Tilly\WSJTX_Controller\bin\Debug\Resources\DingDing.wav

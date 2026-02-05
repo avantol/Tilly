@@ -170,6 +170,11 @@
     </None>
   </ItemGroup>
   <ItemGroup>
+    <None Include="Resources\Chime.wav">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
     <None Include="Resources\Dive.wav">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
@@ -192,7 +197,12 @@
   <ItemGroup>
     <Content Include="netfol.ico" />
     <Content Include="Properties\netfol.ico" />
-    <Content Include="Resources\DingDing.wav" />
+    <None Include="Resources\Chime.wav">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="Resources\DingDing.wav">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <Content Include="Resources\netfol.ico" />
   </ItemGroup>
   <ItemGroup>
