@@ -6470,7 +6470,7 @@ namespace WSJTX_Controller
         {
             if (!ctrl.cqOnlyRadioButton.Checked || dmsg.ToCall() == myCall) return;
 
-            if (dmsg.Quality < (int)EnqueueDecodeMessage.Qualities.MEDIUM)
+            if (dmsg.ToCall() != myCall && dmsg.Quality < (int)EnqueueDecodeMessage.Qualities.MEDIUM)
             {
                 RemoveCall(call);
                 if (debugDetail) DebugOutput($"{Time()} UpdateCallQueue: removed call:'{call}' msg:{dmsg.Message} quality:{dmsg.Quality}");
