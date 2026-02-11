@@ -142,6 +142,7 @@ namespace WSJTX_Controller
         private string failReason = "Failure reason: Unknown";
         public static int beamWidth = 90;
         public static int wsjtxRevision;
+        public static int wsjtxTestVer;
         public static int lastWsjtx270RcRevision = 185;
 
         public const int maxQueueLines = 7, maxQueueWidth = 19, maxLogWidth = 9;
@@ -624,17 +625,12 @@ namespace WSJTX_Controller
                     {
                         if (!DetectUdpSettings(out ipAddress, out port, out multicast))
                         {
-                            DebugOutput($"{spacer}unable to get IP address from WSJT-X");
+                            DebugOutput($"{spacer}using default IP address from WSJT-X");
                             heartbeatRecdTimer.Stop();
                             suspendComm = true;
                             ctrl.BringToFront();
-                            if (MessageBox.Show($"Unable to auto-detect WSJT-X's UDP IP address and port.{nl}{nl}If WSJT-X is running for the first time:{nl}- Close and restart WSJT-X now, then{nl}- Click 'Cancel' to try again.{nl}{nl}Otherwise,{nl}-Click OK to run 'Config', then{nl}- Select 'Override' and enter WSJT-X's UDP IP address and port manually.", pgmName, MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) == DialogResult.OK)
-                            {
-                                ctrl.setupButton_Click(null, null);
-                                return;                 //suspendComm set to false at Config close
-                            }
+                            MessageBox.Show($"{pgmName} is using the default UDP IP address and port.", pgmName, MessageBoxButtons.OK, MessageBoxIcon.Warning);
                             suspendComm = false;
-                            return;
                         }
                     }
 
@@ -1029,9 +1025,17 @@ namespace WSJTX_Controller
                 ctrl.initialConnFaultTimer.Stop();             //stop connection fault dialog
                 HeartbeatMessage imsg = (HeartbeatMessage)msg;
                 DebugOutput($"{Time()}{nl}{imsg}");
-                string rev = imsg.Revision.Split(' ')[0];       //may contain other info, including URL
+
+                string[] sa = imsg.Revision.Split(' '); //may contain other info, including URL
+
+                string rev = sa[0];
                 int.TryParse(rev, out wsjtxRevision);
+
+                string testVer = sa.Length >= 1 ? sa[1] : "42";
+                int.TryParse(testVer, out wsjtxTestVer);
+
                 curVerBld = $"{imsg.Version}/{rev}";
+
                 if (!acceptableWsjtxVersions.Contains(curVerBld))
                 {
                     heartbeatRecdTimer.Stop();
@@ -1071,7 +1075,7 @@ namespace WSJTX_Controller
                     ShowStatus();
                     ctrl.ShowMsg("WSJT-X responding", false);
 
-                    DeleteLotwCsv();        //tempOnly, until reason for WSJT-X crashing at startup because of NVDA is determined
+                    if (wsjtxRevision == 102 && wsjtxTestVer < 72) DeleteLotwCsv();        //fixed, reason for WSJT-X crashing at startup because of NVDA determined
                 }
                 UpdateDebug();
                 return;
@@ -5811,9 +5815,15 @@ namespace WSJTX_Controller
             string pgmNameWsjtx = "WSJT-X";
             string pathWsjtx = $"{Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)}\\{pgmNameWsjtx}";
             string pathFileNameExtWsjtx = pathWsjtx + "\\" + pgmNameWsjtx + ".ini";
-            ipa = null;
-            prt = 0;
+
+            //set defaults
+            ipa = IPAddress.Parse("127.0.0.1");
+            prt = 2237;
             mul = false;
+
+            //temp
+            IPAddress ipaAddr;
+            int prtInt;
             string ipaString;
 
             if (!Directory.Exists(pathWsjtx)) return false;
@@ -5822,7 +5832,8 @@ namespace WSJTX_Controller
             {
                 IniFile iniFile = new IniFile(pathFileNameExtWsjtx);
                 ipaString = iniFile.Read("UDPServer", "Configuration");
-                prt = Convert.ToInt32(iniFile.Read("UDPServerPort", "Configuration"));
+                ipaAddr = IPAddress.Parse(ipaString);
+                prtInt = Convert.ToInt32(iniFile.Read("UDPServerPort", "Configuration"));
             }
             catch
             {
@@ -5831,13 +5842,13 @@ namespace WSJTX_Controller
                 return false;
             }
 
-            if (ipaString == "" || prt == 0)
+            if (ipaString == "" || prtInt == 0)
             {
-                ipa = null;
                 return false;
             }
 
-            ipa = IPAddress.Parse(ipaString);
+            prt = prtInt;
+            ipa = ipaAddr;
             mul = ipaString.Substring(0, 4) != "127.";
             return true;
         }

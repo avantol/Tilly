@@ -24,13 +24,13 @@
       <Value Profile="(Default)">True</Value>
     </Setting>
     <Setting Name="ipAddress" Type="System.String" Scope="User">
-      <Value Profile="(Default)">239.255.0.0</Value>
+      <Value Profile="(Default)">127.0.0.1</Value>
     </Setting>
     <Setting Name="port" Type="System.Int32" Scope="User">
       <Value Profile="(Default)">2237</Value>
     </Setting>
     <Setting Name="multicast" Type="System.Boolean" Scope="User">
-      <Value Profile="(Default)">True</Value>
+      <Value Profile="(Default)">False</Value>
     </Setting>
     <Setting Name="windowPos" Type="System.Drawing.Point" Scope="User">
       <Value Profile="(Default)">0, 0</Value>

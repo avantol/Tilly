@@ -19,9 +19,9 @@ namespace WSJTX_Controller
                 MessageBox.Show("An instance of this application is already running.");
                 return;
             }
-            if (System.Diagnostics.Process.GetProcessesByName("Otto").Count() > 0)
+            if (System.Diagnostics.Process.GetProcessesByName("WSJTX_Controller").Count() > 0)
             {
-                MessageBox.Show("Otto and Tilly can't run at the same time.\n\nClose Otto before running Tilly.");
+                MessageBox.Show("Tilly and Otto can't run at the same time.\n\nClose Otto before running Tilly.");
                 return;
             }
             Application.EnableVisualStyles();

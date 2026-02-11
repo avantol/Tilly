@@ -109,7 +109,7 @@ namespace WSJTX_Controller.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("239.255.0.0")]
+        [global::System.Configuration.DefaultSettingValueAttribute("127.0.0.1")]
         public string ipAddress {
             get {
                 return ((string)(this["ipAddress"]));
@@ -133,7 +133,7 @@ namespace WSJTX_Controller.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
         public bool multicast {
             get {
                 return ((bool)(this["multicast"]));
