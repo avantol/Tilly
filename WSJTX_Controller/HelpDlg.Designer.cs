@@ -29,26 +29,27 @@ namespace WSJTX_Controller
         /// </summary>
         private void InitializeComponent()
         {
-            this.helpLabel = new System.Windows.Forms.Label();
+            this.helpLabel = new System.Windows.Forms.TextBox();
             this.closeButton = new System.Windows.Forms.Button();
             this.SuspendLayout();
             // 
             // helpLabel
             // 
-            this.helpLabel.AutoSize = true;
             this.helpLabel.Font = new System.Drawing.Font("Microsoft Sans Serif", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.helpLabel.Location = new System.Drawing.Point(25, 12);
+            this.helpLabel.Location = new System.Drawing.Point(15, 12);
             this.helpLabel.MaximumSize = new System.Drawing.Size(450, 900);
+            this.helpLabel.Multiline = true;
             this.helpLabel.Name = "helpLabel";
-            this.helpLabel.Size = new System.Drawing.Size(0, 15);
+            this.helpLabel.ReadOnly = true;
+            this.helpLabel.Size = new System.Drawing.Size(444, 249);
             this.helpLabel.TabIndex = 0;
             // 
             // closeButton
             // 
             this.closeButton.Font = new System.Drawing.Font("Microsoft Sans Serif", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.closeButton.Location = new System.Drawing.Point(397, 123);
+            this.closeButton.Location = new System.Drawing.Point(466, 231);
             this.closeButton.Name = "closeButton";
-            this.closeButton.Size = new System.Drawing.Size(75, 26);
+            this.closeButton.Size = new System.Drawing.Size(69, 26);
             this.closeButton.TabIndex = 1;
             this.closeButton.Text = "Close";
             this.closeButton.UseVisualStyleBackColor = true;
@@ -59,7 +60,7 @@ namespace WSJTX_Controller
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.White;
-            this.ClientSize = new System.Drawing.Size(484, 161);
+            this.ClientSize = new System.Drawing.Size(549, 273);
             this.Controls.Add(this.closeButton);
             this.Controls.Add(this.helpLabel);
             this.MaximizeBox = false;
@@ -76,7 +77,7 @@ namespace WSJTX_Controller
 
         #endregion
 
-        private System.Windows.Forms.Label helpLabel;
+        private System.Windows.Forms.TextBox helpLabel;
         private System.Windows.Forms.Button closeButton;
     }
 }

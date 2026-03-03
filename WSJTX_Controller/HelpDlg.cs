@@ -34,6 +34,8 @@ namespace WSJTX_Controller
             Height = helpLabel.Location.Y + y + 85;
             closeButton.Location = new Point(closeButton.Location.X, Height - 70);
 
+            helpLabel.SelectionStart = 0;
+            helpLabel.SelectionLength = 0;
             this.Focus();
         }
 

@@ -145,7 +145,7 @@ namespace WSJTX_Controller
         public static int wsjtxTestVer;
         public static int lastWsjtx270RcRevision = 185;
 
-        public const int maxQueueLines = 7, maxQueueWidth = 19, maxLogWidth = 9;
+        public const int maxQueueLines = 8, maxQueueWidth = 19, maxLogWidth = 9;
         private byte[] ba;
         private EnableTxMessage emsg;
         private WsjtxMessage msg = new UnknownMessage();
@@ -3423,8 +3423,8 @@ namespace WSJTX_Controller
                     string snr = $", {d.Snr.ToString("+#;-#;0")}";
                     string country = $", {d.Country}";
 
-                    if (d.Priority == (int)CallPriority.NEW_COUNTRY_ON_BAND) country = country + ", new D X C C on band";
-                    if (d.Priority == (int)CallPriority.NEW_COUNTRY) country = country + ", new D X C C";
+                    if (d.Priority == (int)CallPriority.NEW_COUNTRY_ON_BAND) country = country + ", new DXCC on band";
+                    if (d.Priority == (int)CallPriority.NEW_COUNTRY) country = country + ", new DXCC";
 
                     string g = (WsjtxMessage.Grid(d.Message));
                     string grid = g == null ? "" : $", {SpacifyPayload(g)}";
@@ -3540,14 +3540,20 @@ namespace WSJTX_Controller
                             string callsStr = qcw == 1 ? "call" : "calls";
                             int q = callQueue.Count;
                             string count = q == 0 ? "no" : $"{q}";
+
                             int n = CallQueuePriorityCount(CallPriority.TO_MYCALL);
                             EnqueueDecodeMessage dmsg = new EnqueueDecodeMessage();
                             string c = PeekCall(0, out dmsg);
                             string pc = (c != null && (callInProg == null || timedOutCall != null || loggedCall != null)) ? $", {Spacify(c)} first" : "";
                             string pri = n > 0 ? $", {n} to you{pc}" : "";
+
+                            n = CallQueuePriorityCount(CallPriority.NEW_COUNTRY) + CallQueuePriorityCount(CallPriority.NEW_COUNTRY_ON_BAND);
+                            string cty = n > 0 ? $", {n} new DXCC" : "";
+
                             n = CallQueuePriorityCount(CallPriority.WANTED_CQ);
                             string want = n > 0 ? $", {n} wanted" : "";
-                            string callsWaiting = (!transmitting || qsoState == WsjtxMessage.QsoStates.CALLING) ? $", {count} {callsStr} waiting{pri}{want}" : "";
+
+                            string callsWaiting = (!transmitting || qsoState == WsjtxMessage.QsoStates.CALLING) ? $", {count} {callsStr} waiting{pri}{cty}{want}" : "";
                             string prompt = (cmdPrompts && modePrompt) ? ((txMode == TxModes.CALL_CQ) ? $", Alt E to enable transmit" : (!transmitting && qcw > 0 ? $", Control W for list or Alt N for next" : "")) : "";
 
                             string curCall = callInProg;
